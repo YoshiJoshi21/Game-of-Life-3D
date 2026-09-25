@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Life Lab</title>
+  <meta name="description" content="An interactive 2D and 3D cellular automaton laboratory: edit outer-totalistic rules, draw cells, and survey 100 random rules.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23081226'/%3E%3Crect x='6' y='2' width='4' height='4' fill='%23ffffff'/%3E%3Crect x='10' y='6' width='4' height='4' fill='%2338bdf8'/%3E%3Crect x='2' y='10' width='4' height='4' fill='%232563eb'/%3E%3Crect x='6' y='10' width='4' height='4' fill='%233b82f6'/%3E%3Crect x='10' y='10' width='4' height='4' fill='%2360a5fa'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/" } }
+  </script>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="6" rx="1.2" fill="#fff"/>
+        <rect x="15" y="9" width="6" height="6" rx="1.2" fill="#38bdf8"/>
+        <rect x="3" y="15" width="6" height="6" rx="1.2" fill="#1d4ed8"/>
+        <rect x="9" y="15" width="6" height="6" rx="1.2" fill="#2563eb"/>
+        <rect x="15" y="15" width="6" height="6" rx="1.2" fill="#60a5fa"/>
+      </svg>
+      <div>
+        <h1>Life Lab</h1>
+        <p class="tagline">Emergent complexity from simple rules</p>
+      </div>
+    </div>
+    <div class="mode-switch" role="tablist" aria-label="Dimension">
+      <button role="tab" id="mode2d" class="active" aria-selected="true">2D</button>
+      <button role="tab" id="mode3d" aria-selected="false">3D</button>
+      <span class="mode-thumb" aria-hidden="true"></span>
+    </div>
+    <nav class="toplinks">
+      <a href="#survey">Rule survey</a>
+      <a id="repoLink" href="https://github.com/YoshiJoshi21/Game-of-Life-3D" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ================= VIEWER ================= -->
+    <section class="viewer" id="viewer">
+      <div class="stage-wrap">
+        <div class="stage" id="stage">
+          <canvas id="canvas2d" class="canvas2d"></canvas>
+          <div id="stage3d" class="stage3d" hidden></div>
+          <div class="loading" id="loading">Loading the C++ engine…</div>
+          <div class="stage-hint" id="stageHint"></div>
+        </div>
+
+        <div class="hud">
+          <div class="hud-stat"><span class="k">Generation</span><span class="v" id="statGen">0</span></div>
+          <div class="hud-stat"><span class="k">Population</span><span class="v" id="statPop">0</span></div>
+          <div class="hud-stat"><span class="k">Density</span><span class="v" id="statDensity">0%</span></div>
+          <div class="hud-stat"><span class="k">Speed</span><span class="v" id="statFps">0 gen/s</span></div>
+          <canvas class="sparkline" id="sparkline" aria-label="Population over the last 240 generations"></canvas>
+        </div>
+
+        <div class="banner" id="banner" hidden>
+          <span id="bannerText"></span>
+          <button class="icon-btn" id="bannerClose" aria-label="Dismiss">✕</button>
+        </div>
+
+      </div>
+
+      <aside class="panel">
+        <!-- playback -->
+        <div class="card">
+          <div class="transport">
+            <button class="btn primary" id="playBtn" title="Play / pause (Space)">
+              <svg id="playIcon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <span id="playLabel">Play</span>
+            </button>
+            <button class="btn" id="stepBtn" title="Step one generation (N)">
+              <svg viewBox="0 0 24 24"><path d="M6 5v14l9-7zM16 5h3v14h-3z"/></svg>Step
+            </button>
+            <button class="btn" id="resetBtn" title="Back to generation 0 (R)">
+              <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg>Reset
+            </button>
+            <button class="btn" id="clearBtn" title="Clear the grid (C)">
+              <svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7zM9 4h6l1 2H8z"/></svg>Clear
+            </button>
+          </div>
+          <label class="slider-row">
+            <span>Speed</span>
+            <input type="range" id="speed" min="0" max="9" step="1" value="5">
+            <output id="speedOut">30 gen/s</output>
+          </label>
+        </div>
+
+        <!-- rule editor -->
+        <div class="card">
+          <div class="card-head">
+            <h2>Rule</h2>
+            <div class="rule-input-wrap">
+              <input id="ruleInput" class="rule-input" spellcheck="false" autocomplete="off" aria-label="Rule string">
+            </div>
+          </div>
+          <div class="row">
+            <select id="presetSelect" aria-label="Rule presets"></select>
+            <button class="btn small" id="randomRuleBtn" title="Pick a random rule">🎲 Random</button>
+          </div>
+          <div class="rule-block">
+            <div class="rule-label"><span class="dot born"></span>Birth <small>dead cell becomes alive with…</small></div>
+            <div class="chips" id="birthChips"></div>
+          </div>
+          <div class="rule-block">
+            <div class="rule-label"><span class="dot survive"></span>Survival <small>live cell stays alive with…</small></div>
+            <div class="chips" id="survivalChips"></div>
+          </div>
+          <p class="rule-summary" id="ruleSummary"></p>
+        </div>
+
+        <!-- initial conditions -->
+        <div class="card">
+          <h2>Start state</h2>
+          <label class="slider-row">
+            <span>Density</span>
+            <input type="range" id="density" min="0.01" max="0.9" step="0.01" value="0.25">
+            <output id="densityOut">25%</output>
+          </label>
+          <div class="row" id="blobRow" hidden>
+            <label class="slider-row grow">
+              <span>Fill</span>
+              <input type="range" id="blob" min="0.1" max="1" step="0.05" value="1">
+              <output id="blobOut">whole grid</output>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">Seed <input type="number" id="seed" value="2026" min="0"></label>
+            <label class="field">Grid <select id="gridSize"></select></label>
+          </div>
+          <div class="row">
+            <button class="btn grow" id="randomizeBtn" title="Random soup with this density and seed (X)">Randomize</button>
+            <button class="btn small" id="newSeedBtn" title="New seed, then randomize">New seed</button>
+          </div>
+        </div>
+
+        <!-- drawing tools -->
+        <div class="card">
+          <h2>Draw</h2>
+          <div id="tools2d">
+            <div class="row">
+              <select id="stampSelect" aria-label="Pattern stamp"></select>
+              <button class="btn small" id="rotateBtn" title="Rotate stamp (Q)">⟳ Rotate</button>
+            </div>
+            <p class="hint">Click or drag on the grid to paint; start on a live cell to erase. Pick a stamp to place a pattern.</p>
+          </div>
+          <div id="tools3d" hidden>
+            <div class="seg" role="group" aria-label="3D edit mode">
+              <button id="tool3dDraw" class="active">Add</button>
+              <button id="tool3dErase">Erase</button>
+              <button id="tool3dView">Look only</button>
+            </div>
+            <label class="slider-row">
+              <span>Layer</span>
+              <input type="range" id="layer" min="0" max="31" step="1" value="16">
+              <output id="layerOut">16</output>
+            </label>
+            <label class="check"><input type="checkbox" id="cutaway"> Hide cells above the layer</label>
+            <label class="check"><input type="checkbox" id="autoRotate"> Auto-rotate camera</label>
+            <p class="hint">Drag to orbit, scroll to zoom, right-drag to pan. Click a cube face to stack a cell on it, or click the glowing layer plane. <kbd>[</kbd> <kbd>]</kbd> move the layer.</p>
+          </div>
+        </div>
+
+        <!-- display -->
+        <div class="card">
+          <h2>Display</h2>
+          <label class="check"><input type="checkbox" id="trails" checked> Fading trails where cells died</label>
+          <label class="check" id="gridLinesRow"><input type="checkbox" id="gridLines" checked> Grid lines</label>
+          <label class="check"><input type="checkbox" id="glow" checked> Glow</label>
+          <div class="age-legend">
+            <span>new / edited</span>
+            <div class="age-bar" id="ageBar"></div>
+            <span>old</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- ================= SURVEY ================= -->
+    <section class="survey" id="survey">
+      <div class="section-head">
+        <div>
+          <h2>Rule-space survey</h2>
+          <p class="lede">
+            Samples random outer-totalistic rules exactly like <code>runRandomRules()</code> in
+            <code>analysis/main.cpp</code> and classifies each with <code>Analysis::classify</code>:
+            every rule runs from several random soups until the grid repeats (stable if the period is 1,
+            oscillating otherwise) or the generation limit is hit, where mean 5×5 subgrid entropy splits
+            chaotic from complex. With seed 2026 and the default settings the list matches the CLI's output.
+          </p>
+        </div>
+      </div>
+
+      <div class="card survey-controls">
+        <div class="seg" role="group" aria-label="Survey dimension">
+          <button id="survey2d" class="active">2D · 8 neighbours</button>
+          <button id="survey3d">3D · 26 neighbours</button>
+        </div>
+        <label class="field">Rules <input type="number" id="svCount" min="1" max="1000" value="100"></label>
+        <label class="field">Grid <input id="svGrid" value="64×64" spellcheck="false"></label>
+        <label class="field">Generations <input type="number" id="svGens" min="10" max="5000" value="500"></label>
+        <label class="field">Densities <input id="svDens" value="0.2, 0.35, 0.5" spellcheck="false"></label>
+        <label class="field">Seed <input type="number" id="svSeed" value="2026"></label>
+        <label class="field">Chaos H &gt; <input type="number" id="svThresh" step="0.01" value="0.35"></label>
+        <div class="survey-actions">
+          <button class="btn primary" id="svRun">Run survey</button>
+          <button class="btn" id="svCurrent" title="Classify the rule in the viewer with these settings">Classify viewer rule</button>
+          <button class="btn" id="svExport" disabled>Export CSV</button>
+        </div>
+      </div>
+
+      <div class="progress" id="svProgress" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="svProgressFill"></div></div>
+        <span id="svProgressText"></span>
+      </div>
+
+      <div class="tiles" id="svTiles"></div>
+
+      <div class="survey-grid">
+        <div class="card chart-card">
+          <div class="card-head">
+            <h3>Where the categories live</h3>
+            <div class="legend" id="svLegend"></div>
+          </div>
+          <p class="chart-sub">Each mark is one rule. x: Langton-style λ, the share of neighbour counts that give a live cell
+            (birth + survival counts ÷ 2(N+1)). y: mean live-cell density at the end of the trials. Click a mark to open it.</p>
+          <div class="chart" id="svScatter"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-head"><h3>How long until it repeats</h3></div>
+          <p class="chart-sub" id="svHistSub">Generation where each trial's grid first repeated.</p>
+          <div class="chart" id="svHist"></div>
+        </div>
+      </div>
+
+      <div class="results-head">
+        <div class="filters" id="svFilters" role="group" aria-label="Filter by category"></div>
+        <label class="field inline">Sort
+          <select id="svSort">
+            <option value="index">Sample order</option>
+            <option value="lambda">λ</option>
+            <option value="entropy">Entropy</option>
+            <option value="density">Final density</option>
+            <option value="period">Longest period</option>
+          </select>
+        </label>
+        <label class="field inline">Find <input id="svSearch" placeholder="e.g. B36" spellcheck="false"></label>
+      </div>
+      <div class="results" id="svResults">
+        <div class="empty">Run a survey to fill this in. It runs on every core your browser allows, in web workers.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Engine: <code>engine/life.hpp</code>, <code>engine/life3D.hpp</code> and <code>analysis/analysis.hpp</code> compiled to WebAssembly.
+    Keys: <kbd>Space</kbd> play · <kbd>N</kbd> step · <kbd>R</kbd> reset · <kbd>X</kbd> randomize · <kbd>C</kbd> clear.
+  </footer>
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
