@@ -6,19 +6,16 @@
 #include <unordered_set>
 using namespace std;
 
-// e.g. "B3/S23". 3D counts go up to 26, so two digit counts get commas
+// string from birth and survival lists
 string ruleString(vector<int> B, vector<int> S) {
-    bool commas = false;
-    for (int n : B) if (n >= 10) commas = true;
-    for (int n : S) if (n >= 10) commas = true;
     string s = "B";
-    for (size_t i = 0; i < B.size(); ++i) {
-        if (commas && i > 0) s += ",";
+    for (size_t i = 0; i < B.size(); i++) {
+        if (i > 0) s += ",";
         s += to_string(B[i]);
     }
     s += "/S";
-    for (size_t i = 0; i < S.size(); ++i) {
-        if (commas && i > 0) s += ",";
+    for (size_t i = 0; i < S.size(); i++) {
+        if (i > 0) s += ",";
         s += to_string(S[i]);
     }
     return s;
@@ -32,7 +29,6 @@ void printResult(int number, RuleResult r) {
         cout << " | d=" << fixed << setprecision(2) << t.density << " " << Analysis::categoryName(t.category);
         if (t.period > 0) cout << " p=" << t.period << " @" << t.cycleFoundAt;
         else cout << " H=" << setprecision(3) << t.entropy;
-        if (t.activeEntropy >= 0) cout << " Ha=" << setprecision(3) << t.activeEntropy;
         if (t.finalPopulation == 0) cout << " (extinct)";
     }
     cout << "\n";
@@ -55,19 +51,19 @@ void runRandomRules(LifeGame &game, Analysis &analysis, int maxNeighbors, int co
 
         vector<int> B;
         vector<int> S;
-        for (int n = 0; n <= maxNeighbors; ++n) {
+        for (int n = 0; n <= maxNeighbors; n++) {
             if (bits & (1ULL << n)) B.push_back(n);
             if (bits & (1ULL << (n + bitsPerSet))) S.push_back(n);
         }
         game.setRule(B, S);
         RuleResult r = analysis.classify(game);
-        ++totals[r.category];
-        ++number;
+        totals[r.category]++;
+        number++;
         printResult(number, r);
     }
 
     cout << "\nTotals:\n";
-    for (int c = 0; c < 4; ++c)
+    for (int c = 0; c < 4; c++)
         cout << "  " << left << setw(12) << Analysis::categoryName(static_cast<Category>(c)) << right << totals[c] << "\n";
     cout << "\n";
 }
