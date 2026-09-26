@@ -113,12 +113,12 @@ export const presets2D = [
 // start states picked by running each rule on a 32^3 grid and keeping ones
 // that do something visible for at least a hundred generations
 export const presets3D = [
-  { name: "Bays' Life 4555", ...R([5], [4, 5]), density: 0.45, blob: 0.6 },
+  { name: "Bays' Life 4555", ...R([5], [4, 5]), density: 0.3, blob: 0.3 },
   { name: "Bays' Life 5766", ...R([6], [5, 6, 7]), density: 0.3, blob: 1 },
-  { name: 'Clouds', ...R([13, 14, 17, 18, 19], range(13, 26)), density: 0.5, blob: 0.9 },
+  { name: 'Clouds', ...R([13, 14, 17, 18, 19], range(13, 26)), density: 0.5, blob: 1 },
   { name: 'Amoeba growth', ...R([6], [5, 6, 7, 8]), density: 0.3, blob: 0.3 },
   { name: 'Crystal', ...R([6], [4, 5, 6, 7, 8]), density: 0.2, blob: 0.3 },
-  { name: 'Coral growth', ...R([5, 6, 7], range(5, 11)), density: 0.06, blob: 0.4 },
+  { name: 'Coral growth', ...R([5, 6, 7], range(5, 11)), density: 0.1, blob: 0.4 },
   { name: 'Boiling', ...R([4, 5], [5]), density: 0.2, blob: 0.3 },
   { name: "Conway's numbers in 3D", ...R([3], [2, 3]), density: 0.1, blob: 1 },
 ];

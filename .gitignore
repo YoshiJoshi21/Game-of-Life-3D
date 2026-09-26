@@ -4,3 +4,10 @@ a.out
 /analysis/main
 /analysis/*.exe
 node_modules/
+experiments/run
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk

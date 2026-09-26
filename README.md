@@ -40,6 +40,8 @@ wasm/bindings.cpp  Emscripten bindings the website uses (the only C++ added)
 build.sh           compiles bindings.cpp -> web/wasm/life.{js,wasm}
 web/               the static website (index.html, css/, js/, wasm/, vendor/three.js)
 .github/workflows/pages.yml   builds the wasm and deploys web/ to GitHub Pages
+experiments/       experiments.cpp + figures.py behind the report (data in experiments/out/)
+report/            the report (LaTeX + compiled PDF + overleaf.zip)
 ```
 
 `wasm/bindings.cpp` wraps the engine without changing it:
