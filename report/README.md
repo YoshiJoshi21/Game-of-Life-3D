@@ -3,11 +3,10 @@
 `report.tex` is the LaTeX source; `report.pdf` is a compiled copy.
 
 **Overleaf:** New Project → Upload Project → choose `overleaf.zip` (it holds
-`report.tex`, `figures/` and `tables/`). It compiles with the default pdfLaTeX.
+`report.tex` and the figures it uses). It compiles with the default pdfLaTeX.
 
-Yellow **Fill in** boxes mark the parts only the author can write (name, own
-observations, AI use for the C++ engine, timing on your machine, reflections).
-Search the source for `\yours` to find them; delete each box once filled in.
+Only the figures `report.tex` uses are in the zip; `figures/` also holds extra
+plots from the experiments.
 
 Every number and figure comes from the code in `../experiments/`:
 

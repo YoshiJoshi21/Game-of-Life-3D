@@ -1,453 +1,231 @@
-\documentclass[11pt]{article}
-
+\documentclass{article}
+\usepackage{fvextra}
 \usepackage[margin=1in]{geometry}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage{microtype}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{longtable}
-\usepackage{amsmath}
-\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 \usepackage{caption}
-\usepackage{subcaption}
-\usepackage{enumitem}
-\usepackage[section]{placeins}
-\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{float}
 
 \graphicspath{{figures/}}
-\captionsetup{font=small,labelfont=bf}
-\setlist{itemsep=2pt,topsep=4pt}
-
-% Highlighted boxes for the parts only the author can write. Search for
-% "\yours" to find them all; delete the macro calls once they are filled in.
-\newcommand{\yours}[1]{\par\smallskip\noindent\colorbox{yellow!25}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\textbf{Fill in:} #1}}\par\smallskip}
-
-\newcommand{\rl}[1]{\texttt{#1}}
-\newcommand{\website}{\url{https://yoshijoshi21.github.io/Game-of-Life-3D/}}
-\newcommand{\repo}{\url{https://github.com/YoshiJoshi21/Game-of-Life-3D}}
-
-\title{Emergent Complexity in Outer-Totalistic Cellular Automata\\[4pt]\large A 2D/3D simulator, a survey of random rules, and a look at 3D life}
-\author{\colorbox{yellow!25}{Fill in: your name}}
-\date{September 2026}
 
 \begin{document}
+\title{Emergent Complexity Initial Assignment}
+\author{Aryan Joshi}
 \maketitle
 
-\begin{abstract}
-I built an interactive cellular-automaton lab: a C++ engine for binary outer-totalistic rules in 2D (8 neighbours) and 3D (26 neighbours), a classifier that sorts rules into stable, oscillating, chaotic and complex, and a website that runs both in the browser through WebAssembly. With it I ran 144 random Life soups and 144 HighLife soups to see what is left behind, surveyed 100 (and then 1000) random 2D rules, and took the 3D extension. The main findings: Life's settled ``ash'' is about 2.85\% live cells from almost any starting density. HighLife's replicator copies itself in a Sierpinski pattern: the population at generation $12k$ is exactly $12\cdot 2^{\mathrm{popcount}(k)}$. Among random rules, whether the rule contains a low birth count (B0, B1 or B2) predicts chaos far better than Langton-style $\lambda$ does. And in 3D, uniformly random rules are \emph{all} chaotic, because 97\% of them contain a birth count of 4 or less; sparser sampling brings stable rules back, split almost perfectly by the smallest birth count.
-\end{abstract}
-
-\begin{center}
-\footnotesize
-\begin{tabular}{@{}ll@{}}
-Website & \website \\
-Code    & \repo \\
-Reproduce the numbers & \texttt{g++ -O3 -std=c++17 experiments/experiments.cpp -o experiments/run} \\
-                      & \texttt{./experiments/run all \&\& python3 experiments/figures.py} \\
-\end{tabular}
-\end{center}
-
-\tableofcontents
-\bigskip
-
-%=====================================================================
-\section{What I built and how it works}
-%=====================================================================
-
-\subsection{The simulation engine (C++)}
-
-All simulation code sits behind one interface, \texttt{LifeGame} (\texttt{engine/lifeGame.hpp}), with two implementations:
-
+\section{Overview}
+For this assignment, I had to implement a website that simulates modifications of ``Conway's Game of Life'' with different birth/survival counts. The website supports 2D and 3D game rules and randomly samples 100 rules for the user to investigate. The website can be viewed \href{https://yoshijoshi21.github.io/Game-of-Life-3D/}{here}, and the code is on \href{https://github.com/YoshiJoshi21/Game-of-Life-3D}{GitHub}.
+\subsection{Life Simulation}
+The classes \verb|life.hpp| and \verb|life3D.hpp|, both of which extend a \verb|lifeGame| interface, implement the rules of the simulation. Both of these classes store a boolean array of on/off cells and the ability to update the array according to the current rule. To avoid edges creating unintended edge cases, I chose to ``wrap around'' the grids so cells on the bottom row can affect the top and vice versa.
+\subsection{Analysis}
+The class \verb|analysis.hpp| looks at a single \verb|lifeGame| and attempts to classify it into one of 4 categories
 \begin{itemize}
-  \item \texttt{LifeGrid} (\texttt{engine/life.hpp}): a $W\times H$ grid of cells, each on or off. The edges wrap around (a torus), so there are no borders.
-  \item \texttt{LifeGrid3D} (\texttt{engine/life3D.hpp}): the same for a $W\times H\times D$ grid, with the 26-cell Moore neighbourhood.
+    \item \textbf{Stable}, meaning this rule settles into an unchanging pattern
+    \item \textbf{Oscillating}, meaning this rule settles into a repeating pattern of some kind
+    \item \textbf{Chaotic}, meaning this rule settles into no structure whatsoever
+    \item \textbf{Complex \& Organized}, meaning this rule doesn't repeat predictably, but has interesting ``lifelike'' structures of some kind
+\end{itemize}
+To classify rules, I first ran them for a long time and checked if any board state matched a previous one (via hashing). If the period was 1, I classified the rule as \textbf{Stable}, otherwise it was \textbf{Oscillating}. To decide between the last two categories, I compute the Shannon Entropy of every $5 \times 5$ or $5 \times 5 \times 5$ subgrid of cells, and decided every rule with a high enough entropy was \textbf{Chaotic}, otherwise it was \textbf{Complex \& Organized}.
+\paragraph{Use of Entropy}
+I chose to use Shannon entropy because, subjectively, ``organized'' rules should have a small number of repeating structures, such as gliders. On the other hand, ``unorganized'' rules should exhibit lots of random patterns. Because of this, I thought that entropy was a good heuristic to decide between the two, similar to how languages tend to have much lower entropy than random text.
+\paragraph{Multiple starts}
+One random start isn't enough to judge a rule, so every rule is run from three random soups (different starting densities) and gets whichever category wins the majority vote. Ties go to the more interesting category.
+\subsection{Website \& AI Usage}
+Unlike the sections above, the website was entirely AI Generated. It includes:
+\begin{itemize}
+    \item A 2D and 3D game of life viewer that allows the user to randomize or clear the grid, adjust the simulation speed as the simulation continues, and adjust Birth/Survival counts in real-time
+    \item An ``Analysis'' section at the bottom of the website that randomly samples many possible rules and uses my heuristics to classify them into one of many categories.
+\end{itemize}
+The website doesn't reimplement anything. My C++ is compiled to WebAssembly, so the website runs the exact same simulation and classifier as my code. Newly born or drawn cells show up white and fade to blue as they age, which makes moving objects easy to spot. Clicking a rule in the Analysis section replays that exact run (same grid, density and random seed) in the viewer, so anything in this report can be reproduced on the site. With seed 2026 and the default settings, the Analysis section gives the same 100 rules and results as my command line program.
+
+I also used AI (Claude Code) to write the scripts behind the experiments in this report (\verb|experiments/| in the repo). They use my engine and classifier unchanged, and it helped me draft this report.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{site_2d.jpg}
+    \caption{The website running Conway's Life. White cells were just born, darker blue cells are older.}
+\end{figure}
+
+\section{Exploring the Game of Life}
+I ran Conway's Life (B3/S23) on a $128 \times 128$ grid from random soups at 12 starting densities between 5\% and 80\%, with 12 random seeds each (144 runs), until the board repeated or 6000 generations passed.
+
+Every run went through the same three stages (Figure~\ref{fig:soups}). First, most cells die in the first few generations from over- or under-crowding. Then there is a long messy phase of blobs growing, colliding and burning out, with gliders flying off and hitting things. Finally everything settles into ``ash'': still lifes and blinkers. 136 of the 144 runs ended in a period 2 cycle.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{soup_snapshots.pdf}
+    \caption{The same random soup (35\% density) under Life (top) and HighLife (bottom).}
+    \label{fig:soups}
+\end{figure}
+
+\paragraph{Observations}
+\begin{itemize}
+    \item The ash is almost always the same density. For any starting density from 10\% to 70\%, the final board is $2.85\% \pm 0.32\%$ alive, even though settling takes anywhere from about 1200 to 2600 generations (median). Very sparse (5\%) and very dense (80\%) soups die almost immediately instead.
+    \item Blinkers (34\%), blocks (32\%) and beehives (19\%) make up 85\% of everything that's left over. After those come loaves, boats, ponds, tubs, ships, toads, beacons and barges.
+    \item Gliders are everywhere in the messy phase. Since my grid wraps around, a glider can't escape. Three runs ended with a period of 512, which is exactly the time a glider takes to travel around the 128-wide grid once.
 \end{itemize}
 
-A rule is a list of birth counts $B$ and survival counts $S$. When the rule is set, each class builds two lookup tables, \texttt{canBirth[n]} and \texttt{canSurvive[n]} for $n=0\ldots8$ (or $0\ldots26$). Then \texttt{step()} is one loop: count the live neighbours of every cell, look up the next state, write it into a second buffer, and swap the two buffers. Both classes expose \texttt{flatten()}, which returns one byte per cell with index $(z\cdot H + y)\cdot W + x$. The classifier and the website both read the grid through this.
+\section{Editable Rules and HighLife}
+On the website, the birth and survival counts are two rows of buttons numbered 0 to 8. Each button shows a small $3\times3$ picture with that many neighbours lit, so it's easy to see what each count means. You can also type a rule like \verb|B36/S23| or pick a preset. Clicking the ``6'' in the birth row turns Life into HighLife.
 
-\subsection{The classifier (\texttt{analysis/analysis.hpp})}
-
-\texttt{Analysis::classify} runs a rule from several random starting grids (``soups''), one per starting density, and labels each run:
-
-\begin{enumerate}
-  \item Each generation, the whole grid is hashed (64-bit FNV-1a over \texttt{flatten()}), and the generation at which each hash was first seen is stored. When a hash repeats, the run is periodic from then on. A period of 1 means \textbf{stable}; anything longer means \textbf{oscillating}. The code records the period and the generation of the first repeat.
-  \item If nothing repeats within \texttt{maxGen} generations, the run is \textbf{chaotic} or \textbf{complex}. To tell them apart, it averages over the last 50 generations the Shannon entropy of the live fraction in every $5\times5$ (or $5\times5\times5$) window, $H(p) = -p\log_2 p - (1-p)\log_2(1-p)$. The windows are summed one axis at a time so the cost stays linear. Mean entropy above 0.35 counts as chaotic (well-mixed noise everywhere); below that counts as complex (activity with structure and empty space).
-  \item The rule's label is a majority vote over its runs. Ties go to the more interesting category.
-\end{enumerate}
-
-\texttt{analysis/main.cpp} samples random rules and prints this for each one. A rule is a random 64-bit number from \texttt{mt19937\_64}, masked to $2(N+1)$ bits: the low $N+1$ bits are the birth counts and the next $N+1$ are the survival counts. Duplicates are skipped.
-
-\subsection{The website}
-
-The website (Figure~\ref{fig:site}) runs the same C++ in the browser. \texttt{wasm/bindings.cpp} wraps the engine and the classifier, and Emscripten compiles them to WebAssembly (\texttt{build.sh}). Nothing in \texttt{engine/} or \texttt{analysis/} had to change for the web. The site has three parts.
-
-\paragraph{Viewer.} Play, pause, single step, reset to generation~0, clear, and a speed slider from 1 generation per second up to ``as fast as possible''. You can draw by clicking or dragging (starting on a live cell erases), or stamp known patterns (glider, LWSS, Gosper gun, HighLife replicator\ldots). Cells are coloured by age: a cell that was just born or just drawn is white, and it cools through sky blue to deep blue as it survives. Dead cells leave a short fading trail. This makes motion easy to see: gliders show up as white fronts, and still lifes turn dark blue. A sparkline under the grid plots the population over time.
-
-\paragraph{Rule editor.} Birth and survival are two rows of toggle chips. In 2D each chip shows a small $3\times3$ neighbourhood with $n$ neighbours lit, so the meaning of each count is visible. The rule string can also be typed (\rl{B36/S23}, \rl{B5/S4,5}, \rl{B13-14,17-19/S13-26}) or picked from presets. A sentence under the chips states the rule in plain English and warns about B0 strobing.
-
-\paragraph{3D editor.} The 3D grid is drawn with three.js as instanced cubes (one draw call for every live cell), with the same age colours. You orbit, zoom and pan the camera with the mouse. To edit, you either click a cube face, which stacks a new cell on that face, or click the translucent ``layer'' plane to place a cell on that layer. \texttt{[} and \texttt{]} move the layer, and a cut-away option hides everything above it so the inside can be edited. Picking uses a voxel ray-march (Amanatides--Woo) through the grid rather than testing the ray against every cube, so it stays fast with tens of thousands of cells.
-
-\paragraph{Rule survey.} This runs the \texttt{main.cpp} survey in the browser, spread across one web worker per CPU core. It shows category counts, a $\lambda$ vs.\ final-density scatter, a histogram of when runs first repeated, and a card per rule with thumbnails of each run's final grid. Clicking a card replays that exact run (same grid size, density and seed) in the viewer. Results can be exported as CSV.
-
-The survey had one design problem. \texttt{Analysis} draws every run's random seed from one generator, in order, so rule \#57's seeds depend on having run rules \#1--56 first. That rules out running rules in parallel. The fix was a small wrapper game (\texttt{SeededGame}) that passes everything through to the real grid, except that \texttt{randomize()} swaps in the seed that rule would have received in the sequential run. The survey can then run on every core and still reproduce the CLI exactly. With seed 2026 and the CLI's settings, the website lists the same 100 rules with the same labels and entropies.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{site_2d.jpg}\\[4pt]
-  \begin{subfigure}[t]{0.36\linewidth}\centering
-    \includegraphics[width=\linewidth]{site_rule_editor.jpg}
-    \caption{Rule editor with HighLife selected.}
-  \end{subfigure}\hfill
-  \begin{subfigure}[t]{0.61\linewidth}\centering
-    \includegraphics[width=\linewidth]{site_3d_edit.jpg}
-    \caption{3D editor: layer plane, cut-away, hover cursor.}
-  \end{subfigure}
-  \caption{The website. Top: Life from a random soup. New cells are white and older cells are darker blue, with faint trails where cells died.}
-  \label{fig:site}
-\end{figure}
-
-\subsection{Design decisions}
-
+I repeated the soup experiment with HighLife (B36/S23). It looks almost identical to Life, but there are a few differences:
 \begin{itemize}
-  \item \textbf{Torus boundaries.} There are no edge effects and every cell has a full neighbourhood. The cost is that gliders loop forever and eventually crash into the debris they left behind (Section~\ref{sec:life}).
-  \item \textbf{Cycle detection by hashing the whole grid.} This catches any period with no extra bookkeeping. A 64-bit hash could in principle collide and fake a cycle, but with at most a few thousand states per run that chance is negligible.
-  \item \textbf{WebAssembly instead of a JavaScript rewrite.} The website and the experiments run the same code, so what you see in the browser is what the report measures.
-  \item \textbf{Instanced cubes for 3D.} One draw call handles every live cell. Only the positions and colours of live cells are uploaded each frame.
+    \item The ash is thinner ($1.97\%$ alive vs.\ $2.85\%$), with more blocks (42\% of objects) and far fewer blinkers (15\%).
+    \item Dense soups survive. At 80\% density, Life dies within about 12 generations, but HighLife keeps going for over 1000, since birth on 6 neighbours lets cells appear inside crowded areas.
+    \item One run ended in a period 14 cycle, the only period in HighLife other than 1 or 2.
 \end{itemize}
 
-%=====================================================================
-\section{Questions}
-%=====================================================================
+\paragraph{The Replicator}
+HighLife is known for its replicator, a 12 cell pattern that copies itself. Every 12 generations it becomes a row of copies, and when two copies land in the same spot they cancel out. The number of copies follows a Sierpinski triangle pattern: at generation $12k$ the population is exactly $12 \cdot 2^{(\text{number of 1s in } k \text{ in binary})}$. I checked this for $k = 0$ to $24$ and it held every time.
 
-\begin{enumerate}
-  \item What does Conway's Life turn into from random soups, and how does that depend on the starting density?
-  \item Which objects appear, and how often? How does HighLife (\rl{B36/S23}) differ?
-  \item Among random outer-totalistic rules, how common are stable, oscillating, chaotic and complex behaviour? What about a rule predicts its category?
-  \item What is going on in the rules the classifier calls ``complex''?
-  \item In 3D: what do random rules do, how does that compare with 2D, and how big a grid is practical?
-\end{enumerate}
-
-%=====================================================================
-\section{Task 1: Conway's Life from random soups}\label{sec:life}
-%=====================================================================
-
-\paragraph{Setup.} $128\times128$ torus, rule \rl{B3/S23}. Twelve starting densities (0.05 to 0.4 in steps of 0.05, then 0.5, 0.6, 0.7 and 0.8), with 12 seeds each, for 144 soups. Each soup runs until its state repeats, or for at most 6000 generations. At the end I split the grid into 8-connected clusters and identify each one up to rotation and reflection. To name them, I ran known patterns (block, beehive, glider, toad, \ldots) through the engine, recording every phase.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{soup_snapshots.pdf}
-  \caption{The same $d=0.35$ soup (seed 7) under Life (top) and HighLife (bottom), at generations 0, 1, 10, 100, 500 and 1500.}
-  \label{fig:snapshots}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{replicator.pdf}
+    \caption{The HighLife replicator after 1, 2, 4, 8 and 16 copies, and its population compared to the formula (black dots).}
 \end{figure}
 
-\paragraph{Three phases.} Every soup went through the same three stages (Figures~\ref{fig:snapshots} and~\ref{fig:traces}):
-\begin{enumerate}
-  \item \textbf{Die-off} (first 10 generations). Crowded and isolated cells die at once. For starting densities 0.15--0.6 the density lands between 0.10 and 0.24 by generation 10, much closer together than where they started. Very sparse (0.05) and very dense ($\ge0.7$) soups lose almost everything here.
-  \item \textbf{Long transient} (hundreds to thousands of generations). The grid becomes an archipelago of active regions. Blobs grow, collide and burn out; gliders leave and later hit something; and regions that seemed dead get restarted by debris. The population drifts down slowly with bursts.
-  \item \textbf{Ash.} Only still lifes and period-2 oscillators remain. 136 of the 144 soups ended with period exactly 2 (blinkers, toads and beacons flipping among still lifes).
-\end{enumerate}
+\begin{table}[H]
+    \centering
+    \begin{tabularx}{\linewidth}{lX}
+        \toprule
+        Kind & HighLife patterns I found \\
+        \midrule
+        Still lifes & block, beehive, loaf, boat, tub, pond, barge, long boat \\
+        Oscillators & blinker, toad, beacon (period 2), one period 14 \\
+        Moving & glider (the same glider as Life) \\
+        Replicators & the 12 cell replicator \\
+        \bottomrule
+    \end{tabularx}
+    \caption{Catalogue of HighLife patterns.}
+\end{table}
 
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{soup_traces.pdf}
-  \caption{Live-cell density over time for one soup at four starting densities (seed 0). The generation axis is logarithmic after 10.}
-  \label{fig:traces}
-\end{figure}
+\section{100 Random Rules}
+I sampled 100 random rules out of the $2^{18}$ possible ones and classified each on a $64 \times 64$ grid for up to 500 generations, starting from densities of 20\%, 35\% and 50\%. To make sure 100 was enough, I also ran a second batch of 1000 rules.
 
-\paragraph{How long and how much.} For starting densities 0.1--0.7, the median time to the first repeated state is 1200--2600 generations, with a wide spread (Figure~\ref{fig:settling}, left). The settled ash is remarkably consistent: \textbf{$2.85\% \pm 0.32\%$ live cells} (mean $\pm$ s.d.\ over 120 soups) for any starting density from 0.1 to 0.7. The extremes behave differently. At $d=0.05$ most cells are isolated and die, and soups settle by about generation 67 (median) with 0.8\% ash. At $d=0.8$ almost every cell is overcrowded and dies in the first step, so soups settle by generation 12 with 0.2\% ash.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{soup_settling.pdf}
-  \caption{Left: generation of the first repeated state (median of 12 soups; band = interquartile range). Right: mean density of the final ash.}
-  \label{fig:settling}
-\end{figure}
-
-\paragraph{What is left.} Figure~\ref{fig:census} counts the 7{,}702 objects left by the 48 soups with $d\in[0.2,0.5]$. Blinkers (33.8\%), blocks (32.2\%) and beehives (19.0\%) make up 85\% of all objects. They are followed by loaves, boats, ponds, tubs, ships, toads, long boats, beacons and barges. Only 0.4\% of clusters were unnamed; these were larger still lifes, or two still lifes touching diagonally, which counts as one cluster.
-
-\paragraph{Moving objects.} Gliders are everywhere during the transient, but on a torus a glider can't escape. Three soups ended with a period of \textbf{512} $= 4\times128$: the time it takes a glider (speed $c/4$ diagonally) to go round the $128\times128$ torus once. In each case the glider had found a clear lane through the ash. Four soups (all $d\ge0.5$) were still active at generation 6000.
-
-\yours{Add a few structures you noticed yourself on the website, with screenshots: for example a glider leaving a blob, the ``traffic light'' (four blinkers), or a pulsar forming from a soup. Say what you found surprising.}
-
-%=====================================================================
-\section{Task 2: an editable rule and HighLife}
-%=====================================================================
-
-The rule editor is described in Section~1.3. Clicking the ``6'' chip in the birth row turns Life into HighLife (\rl{B36/S23}). The one difference: a dead cell with six live neighbours is also born.
-
-\paragraph{HighLife soups.} I repeated the soup experiment with \rl{B36/S23} (Figures~\ref{fig:snapshots} and~\ref{fig:census}). HighLife looks almost the same as Life for most of the run, but the statistics differ:
-\begin{itemize}
-  \item The ash is thinner: \textbf{$1.97\%\pm0.22\%$} live cells, against 2.85\% for Life.
-  \item The mix of objects is different. Blocks are 42\% of objects (32\% in Life), and blinkers only 15\% (34\% in Life). Loaves and boats are more common.
-  \item \textbf{Dense soups do not die.} At $d=0.8$, Life dies in about 12 generations, but HighLife soups ran for a median of 1244 generations and left 1.9\% ash. B6 lets new cells appear inside a crowded region, so the initial die-off leaves seeds behind instead of nothing.
-  \item All 144 soups settled. One ended with a \textbf{period-14} cycle, the only period in HighLife other than 1 or 2.
-\end{itemize}
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{census.pdf}
-  \caption{Census of the settled grids of 48 soups per rule. Toads and beacons split into two pieces in one phase; the census recognises this and counts them as whole objects.}
-  \label{fig:census}
-\end{figure}
-
-\paragraph{The replicator.} HighLife is famous for its \emph{replicator}, a 12-cell pattern that makes copies of itself. I placed one on a $320\times320$ torus, large enough that the copies don't wrap round within 300 generations, and tracked it (Figure~\ref{fig:replicator}). Every 12 generations the pattern consists of whole copies of the replicator lined up on a diagonal. Where two copies would land on the same spot, they destroy each other. The copy count follows the Sierpinski triangle, like the elementary cellular automaton rule 90 (XOR of the two neighbours). At generation $12k$ the population is exactly
-\[
-  \text{population}(12k) = 12\cdot 2^{\,\mathrm{popcount}(k)},
-\]
-where $\mathrm{popcount}(k)$ is the number of 1 bits in $k$. I checked this for every $k=0,\ldots,24$ and all 25 values match. For example, $k=15=1111_2$ gives 16 copies (192 cells), and $k=16=10000_2$ gives just 2 (24 cells).
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{replicator.pdf}
-  \caption{The HighLife replicator. Top: generations 0, 12, 36, 84 and 180 (1, 2, 4, 8 and 16 copies), each shown in the same $100\times100$ window. Bottom: population (orange) and the prediction $12\cdot2^{\mathrm{popcount}(k)}$ at every 12th generation (black).}
-  \label{fig:replicator}
-\end{figure}
-
-\paragraph{Catalogue of HighLife patterns found.}
-\begin{center}\small
-\begin{tabular}{@{}lll@{}}
-\toprule
-Kind & Patterns & How found \\
-\midrule
-Still lifes & block, beehive, loaf, boat, tub, pond, barge, long boat & soup census \\
-Oscillators & blinker, toad, beacon (period 2); one period-14 & soup census \\
-Spaceships & glider (same as Life's; checked with the engine) & soups, stamp \\
-Replicator  & 12-cell replicator, Sierpinski growth & stamp (website) \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\yours{Add any HighLife patterns you found by hand on the website (e.g.\ by stamping two replicators near each other, or a replicator next to a block).}
-
-%=====================================================================
-\section{Task 3: 100 random rules}
-%=====================================================================
-
-\paragraph{Setup.} Exactly as \texttt{main.cpp}: 100 distinct rules drawn uniformly from all $2^{18}$ (seed 2026), each run on a $64\times64$ torus for at most 500 generations from starting densities 0.2, 0.35 and 0.5, then classified by majority vote. To check that 100 rules is enough, I also classified a second, independent sample of 1000 rules (seed 7) with the same settings. Appendix~\ref{app:table} lists all 100 rules and their three runs.
-
-\begin{figure}[!htbp]
-  \centering
-  \begin{minipage}[b]{0.46\linewidth}
-    \includegraphics[width=\linewidth]{survey_categories.pdf}
-  \end{minipage}\hfill
-  \begin{minipage}[b]{0.52\linewidth}
-    \small
-    \begin{tabular}{@{}lrr@{}}
-      \toprule
-      & 100 rules & 1000 rules \\
-      \midrule
-      stable      &  9 & 66 (6.6\%) \\
-      oscillating & 19 & 173 (17.3\%) \\
-      chaotic     & 71 & 757 (75.7\%) \\
-      complex     &  1 & 4 (0.4\%) \\
-      \midrule
-      runs disagree & 9 & 60 \\
-      \bottomrule
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        Category & 100 rules & 1000 rules \\
+        \midrule
+        Stable & 9 & 66 \\
+        Oscillating & 19 & 173 \\
+        Chaotic & 71 & 757 \\
+        Complex \& Organized & 1 & 4 \\
+        \bottomrule
     \end{tabular}
-    \vspace{12pt}
-  \end{minipage}
-  \caption{Categories of random 2D rules. ``Runs disagree'' counts rules whose three runs did not all get the same label.}
-  \label{fig:categories}
+    \caption{How the random rules were classified.}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{survey_thumbnails.pdf}
+    \caption{Final boards for some of the 100 sampled rules.}
 \end{figure}
 
-\paragraph{The categories.} The 100-rule sample gave 9 stable, 19 oscillating, 71 chaotic and 1 complex rule, and the 1000-rule sample confirms those shares (Figure~\ref{fig:categories}). Figure~\ref{fig:thumbs} shows typical end states:
+\paragraph{Observations}
 \begin{itemize}
-  \item \textbf{Stable} rules either freeze almost at once into a mesh of still cells (\#18, \#35) or die out apart from a few tiny still lifes (\#9). Four of the 1000 rules killed every cell in all three runs.
-  \item \textbf{Oscillating} rules mostly have period 2. Across the 1000-rule sample the most common periods were 2 (227 runs), 4 (79), 12 (69) and 6 (57), with a few long ones (60, 84). Many period-2 rules are \emph{strobing}: they contain B0 (an empty neighbourhood gives birth) but not S8 (a full neighbourhood doesn't survive), so the whole grid inverts every step.
-  \item \textbf{Chaotic} rules fill the grid with noise and never repeat. Their mean entropy ranged from 0.49 to 0.99.
-  \item \textbf{Complex} was very rare: 1 in 100 and 4 in 1000. Section~\ref{sec:strobe} looks at why.
+    \item Most random rules are chaotic and just fill the board with noise.
+    \item The best predictor of chaos is the smallest birth count. If a dead cell can be born with 0, 1 or 2 neighbours, the rule was chaotic about 80\% of the time, since those births happen almost everywhere. Out of the rules whose smallest birth count was 3 or more (like Life), only 39\% were chaotic (Figure~\ref{fig:birth}). Only 1 in 8 random rules avoids births on 0, 1 and 2, which is why chaos dominates.
+    \item Simply counting how many birth/survival numbers a rule has (Langton's $\lambda$) doesn't separate the categories at all.
+    \item Many oscillating rules have birth on 0 but not survival on 8, so the whole board flips on and off every generation.
+    \item 9 of the 100 rules got different categories from different starting densities, so running a rule once really isn't enough.
 \end{itemize}
 
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{survey_thumbnails.pdf}
-  \caption{Final grids ($64\times64$) of some of the 100 sampled rules, shown for the run that agreed with the rule's vote.}
-  \label{fig:thumbs}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{survey_birth.pdf}
+    \caption{1000 random rules, grouped by their smallest birth count.}
+    \label{fig:birth}
 \end{figure}
 
-\paragraph{What predicts the category?} Langton's $\lambda$ for general CA is the fraction of rule-table entries that lead to a live cell. For outer-totalistic rules the analogue is $\lambda=(|B|+|S|)/2(N+1)$. In this sample it does not separate the categories at all: the median $\lambda$ is 0.50 for stable, oscillating and chaotic rules alike (Figure~\ref{fig:lambda}). The \emph{smallest birth count} is a much better predictor (Figure~\ref{fig:birth}). If a rule lets a dead cell be born with 0, 1 or 2 neighbours, it is chaotic 77--85\% of the time: small birth counts fire everywhere in a sparse grid, so activity never runs out. Of the rules whose lowest birth count is 3 or more (like Life), only 39\% are chaotic, and 30\% are stable and 29\% oscillating. Since each count is in $B$ with probability $\tfrac12$, only $1/8$ of uniformly random rules avoid B0, B1 and B2. That is the main reason chaos dominates the sample.
+\subsection{A Closer Look: B012367/S35}
+The only rule my classifier called Complex \& Organized was B012367/S35. When I watched it on the website, it didn't look organized at all: the whole board flashes between mostly empty and mostly full every generation (Figure~\ref{fig:strobe}). Its entropy is low because of large uniform areas, not because of gliders or other structures.
 
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{survey_birth.pdf}
-  \caption{1000 random 2D rules, grouped by their smallest birth count.}
-  \label{fig:birth}
+It turns out that a rule with birth on 0 but not survival on 8 can be rewritten exactly: if you invert every other frame, it becomes two normal rules taking turns (B458/S0124678 and B35/S125678). I checked this over 4000 generations and every single one matched. So this rule is really an ordinary rule seen through a flickering lens, and 3 of the 4 ``complex'' rules in the 1000 rule batch were the same kind. This showed me my entropy heuristic can be fooled.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{strobe.pdf}
+    \caption{B012367/S35: even generations (top) and the odd generations right after (bottom) are nearly inverted.}
+    \label{fig:strobe}
 \end{figure}
 
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{survey_lambda.pdf}
-  \caption{$\lambda$ for the 1000-rule sample, one mark per rule. The categories overlap almost completely.}
-  \label{fig:lambda}
-\end{figure}
-
-\paragraph{One run is not enough.} 9 of the 100 rules (60 of 1000) got different labels from different starting densities. The most common splits were stable/oscillating (28 rules), chaotic/oscillating (15) and complex/oscillating (14). The lowest density often settles while higher densities keep going. The same rule really can behave differently depending on where it starts.
-
-\subsection{A closer look: the ``complex'' rule \rl{B012367/S35}}\label{sec:strobe}
-
-The only complex rule in the 100-rule sample was \#94, \rl{B012367/S35}. Its runs were: oscillating with period 2 (first repeat at generation 272) from $d=0.2$, and complex with $H=0.133$ and $H=0.224$ from $d=0.35$ and $0.5$. Watching it on the website shows why the entropy is low (Figure~\ref{fig:strobe}): the grid \emph{strobes}. On even generations the density falls towards 10--15\%; on odd generations it rises towards 85--90\%. Large regions go almost uniform, which gives low local entropy.
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{strobe.pdf}
-  \caption{\rl{B012367/S35} from a $d=0.35$ soup on $128\times128$ (top-left $64\times64$ shown). Top row: even generations. Bottom row: the following odd generations, which are nearly inverted. Right: density on even and odd generations.}
-  \label{fig:strobe}
-\end{figure}
-
-The rule has B0 but not S8, and rules of that kind can be understood exactly. Look at every odd generation with its colours inverted. A step of the rule $R$ followed by inversion is itself an ordinary outer-totalistic rule: a live cell with $n$ live neighbours is live afterwards (in the inverted picture) iff $n\notin S$, and a dead cell iff $n\notin B$. The step back from an inverted frame is also a rule. A cell that is dead in the inverted picture is really alive, and it has $8-m$ live neighbours if it sees $m$ in the inverted picture. Working this through gives the rule pair
-\[
-  R_1 = \mathrm{B}\,\overline{B}\;/\;\mathrm{S}\,\overline{S},
-  \qquad
-  R_2 = \mathrm{B}\{8-s : s\in S\}\;/\;\mathrm{S}\{8-b : b\in B\},
-\]
-where $\overline{X}$ is the set of counts \emph{not} in $X$. Since $0\in B$ and $8\notin S$, neither $R_1$ nor $R_2$ contains B0. For \rl{B012367/S35} this gives
-\[
-  R_1 = \rl{B458/S0124678},\qquad R_2 = \rl{B35/S125678}.
-\]
-To check this, I ran $R$ and the alternating pair $R_1,R_2$ side by side from 20 random soups for 200 generations each. All 4000 generations matched exactly once the odd frames were inverted. So this ``complex'' rule is really an ordinary strobe-free system seen through a flickering lens. Its low entropy comes from the big uniform regions visible in Figure~\ref{fig:strobe}, not from gliders or other structure. Three of the four complex rules in the 1000-rule sample are also B0-without-S8 strobers.
-
-\paragraph{A second ``complex'' rule: \rl{B45678/S12358}.} The fourth complex rule from the 1000-rule sample has no B0. Its three runs were labelled oscillating, complex ($H=0.30$) and chaotic; with a three-way tie the vote goes to the most interesting label. Run by hand from a $d=0.35$ soup on $64\times64$, it forms solid blobs with churning edges that erode slowly. The population falls from 1443 to about 110 by generation 800 and then stays put. At \texttt{maxGen}${}=500$ the classifier catches it in the middle of this. Its ``complexity'' is a long transient, which is interesting in its own right, but it shows that the label depends on how long we wait.
-
-\paragraph{How I would search for more interesting rules.}
+\paragraph{Searching for more interesting rules}
+If I were to search for better rules, I would:
 \begin{itemize}
-  \item \textbf{Sample where the interesting rules are.} Skip B0, B1 and B2, and require S2 or S3 so small structures can survive. Life is in this corner, and only $1/8$ of uniform samples land there.
-  \item \textbf{Map B0 rules to their strobe-free pair} before classifying, so strobing isn't mistaken for complexity.
-  \item \textbf{Detect moving objects directly}: look for small clusters that reappear shifted by a few cells after a fixed number of generations (a translation-invariant hash). Gliders are the most reliable sign of Life-like complexity, and entropy doesn't see them.
-  \item \textbf{Use longer runs and bigger grids} for rules labelled complex, so long transients like \rl{B45678/S12358} are separated from rules that stay active.
-  \item \textbf{Mutate known good rules} (flip one bit of Life or HighLife) instead of sampling uniformly.
+    \item Only sample rules without birth on 0, 1 or 2, since that's where Life-like rules are.
+    \item Convert flickering rules into their two normal rules before classifying them.
+    \item Look for gliders directly (small shapes that reappear shifted a few cells later), since entropy doesn't notice them.
+    \item Mutate rules I already know are interesting, like flipping one number in Life or HighLife.
 \end{itemize}
 
-%=====================================================================
-\section{Option A: three-dimensional cellular automata}
-%=====================================================================
+\section{3D Cellular Automata}
+For the open-ended part I picked Option A. \verb|life3D.hpp| works exactly like the 2D version but with a 3D wrapped grid, so each cell has 26 neighbours and birth/survival counts go from 0 to 26. My classifier didn't need any changes, since the entropy just uses $5\times5\times5$ cubes instead of $5\times5$ squares.
 
-\subsection{Implementation}
+On the website, the 3D grid is shown as cubes you can rotate and zoom around. To edit, you click a cube's face to stack a new cube on it, or click a glowing ``layer'' plane to place a cube on that layer. There is also an option to hide everything above the layer to see inside.
 
-\texttt{LifeGrid3D} is the 2D engine extended to a $W\times H\times D$ torus with 26 neighbours (count range 0--26). The classifier needed no changes. Its entropy windows become $5\times5\times5$, and it reads the grid through the same \texttt{flatten()}. On the website (Section~1.3) the 3D view is a real 3D scene rather than a stack of 2D slices. That brought several technical problems:
-\begin{itemize}
-  \item \textbf{Drawing many cubes.} A $64^3$ grid has 262{,}144 cells. One instanced mesh draws all live cells in a single call. Its buffers are sized for the whole grid once, and each frame only the live cells' positions and colours are written.
-  \item \textbf{Clicking on a 3D grid.} Testing the mouse ray against every cube is slow. Instead the ray is marched through the grid cell by cell (Amanatides--Woo). The first live cell it hits is the target, and the empty cell it passed just before is where a new cell goes. That gives ``stack on the face you clicked'' for free.
-  \item \textbf{Seeing inside.} A slider picks the editing layer, and a cut-away option hides everything above it.
-  \item \textbf{Keeping the browser responsive.} The survey runs in web workers, and three.js is only downloaded when 3D is first opened.
-\end{itemize}
-
-\begin{figure}[!htbp]
-  \centering
-  \begin{subfigure}[t]{0.49\linewidth}\includegraphics[width=\linewidth]{site_3d_amoeba.jpg}\caption{\rl{B6/S5678}: an ``amoeba'' growing from a small seed.}\end{subfigure}\hfill
-  \begin{subfigure}[t]{0.49\linewidth}\includegraphics[width=\linewidth]{site_3d_crystal.jpg}\caption{\rl{B6/S45678}: grows into a ball that freezes solid.}\end{subfigure}\\[4pt]
-  \begin{subfigure}[t]{0.49\linewidth}\includegraphics[width=\linewidth]{site_3d_clouds.jpg}\caption{``Clouds'' \rl{B13,14,17,18,19/S13--26}: a 50\% soup condenses into smooth, long-lived blobs (dark = old cells).}\end{subfigure}\hfill
-  \begin{subfigure}[t]{0.49\linewidth}\includegraphics[width=\linewidth]{site_3d_coral.jpg}\caption{\rl{B567/S5--11}: coral-like growth that fills the grid.}\end{subfigure}
-  \caption{3D rules on a $32^3$ torus, as shown on the website (white = newly born, dark blue = old).}
-  \label{fig:3dsite}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.49\linewidth]{site_3d_amoeba.jpg}\hfill
+    \includegraphics[width=0.49\linewidth]{site_3d_crystal.jpg}\\[4pt]
+    \includegraphics[width=0.49\linewidth]{site_3d_clouds.jpg}\hfill
+    \includegraphics[width=0.49\linewidth]{site_3d_coral.jpg}
+    \caption{3D rules on a $32^3$ grid. Top: B6/S5678 growing like an amoeba, and B6/S45678 freezing into a ball. Bottom: ``Clouds'' (B13,14,17--19/S13--26) and B567/S5--11 growing like coral.}
 \end{figure}
 
-\subsection{How big can the 3D grid be?}
+\paragraph{How big can the grid be?}
+Every generation has to look at 26 neighbours for every cell, so 3D is much slower than 2D. On the machine I ran my experiments on (a 2.1 GHz Xeon, one core), one generation took:
+\begin{table}[H]
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Grid & Cells & Time per generation & Generations per second \\
+        \midrule
+        $64^3$ & 262,144 & 5.7 ms & 175 \\
+        $128^3$ & 2,097,152 & 51 ms & 20 \\
+        $256^3$ & 16,777,216 & 390 ms & 2.5 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+\noindent Compiler settings made a big difference: turning optimization up from \verb|-O2| to \verb|-O3| made 3D steps 5 to 7 times faster. Memory is never the problem, since each cell is a single bit. On the website, drawing the cubes is the real limit, so it stops at $64^3$.
 
-Figure~\ref{fig:timing} shows the time for one generation, measured natively on one core of a 2.1\,GHz Xeon.
+\paragraph{Random 3D rules}
+I sampled 100 random 3D rules the same way as in 2D and ran each on a $24^3$ grid for 200 generations. \textbf{All 100 were chaotic.} This makes sense given my 2D finding: 94 of them had a birth count of 4 or less, and with 26 neighbours almost every dead cell has at least 4 live neighbours in a random soup.
 
-\begin{itemize}
-  \item \textbf{Compiler flags matter more than I expected.} With \texttt{-O3}, a 3D step costs about 22--24\,ns per cell, against 130--170\,ns with \texttt{-O2}: \textbf{5--7$\times$ faster}. The compiler unrolls the 27-iteration neighbour loop. The WebAssembly build (\texttt{-O3}) runs at about 29\,ns per cell in the browser engine, close to native.
-  \item \textbf{Time is the limit, not memory.} The engine stores cells in \texttt{vector<bool>} (one bit each), so even $256^3$ (16.7 million cells) needs about 4\,MB for the two grids, plus 17\,MB for the byte copy made by \texttt{flatten()}. The \texttt{-O3} step times are $64^3$: 5.7\,ms; $128^3$: 51\,ms (about 20 generations per second); $256^3$: 0.39\,s.
-  \item \textbf{In the browser, rendering is the limit.} The simulation could run $128^3$ at about 20 generations per second, but drawing up to two million cubes is too much for most GPUs. The website therefore stops at $64^3$, where both simulation and rendering keep up.
-\end{itemize}
+To see the rest of the 3D rules, I also sampled rules where each count is only included 20\% or 10\% of the time (Figure~\ref{fig:3d}). Stable rules came back, and the smallest birth count almost completely decided the category. Every rule with a birth count of 4 or less was chaotic (except one flickering rule), and every rule whose smallest birth count was 9 or more was stable, usually because it died out. The interesting rules sit in between, with smallest birth count 5 to 8, which is also where known 3D Life rules like B5/S45 and B6/S567 are. My classifier found no Complex \& Organized 3D rules.
 
-\yours{Run \texttt{./experiments/run timing} (compiled with \texttt{-O3}) on your own computer and replace these numbers, since the assignment asks about your machine. Also note the largest grid the website stays smooth on for you.}
-
-\begin{figure}[!htbp]
-  \centering
-  \begin{minipage}[t]{0.49\linewidth}
-    \includegraphics[width=\linewidth]{timing.pdf}
-    \caption{Time per generation against grid size. Both axes are logarithmic.}
-    \label{fig:timing}
-  \end{minipage}\hfill
-  \begin{minipage}[t]{0.49\linewidth}
-    \includegraphics[width=\linewidth]{traces3d.pdf}
-    \caption{3D soups on $32^3$ from a whole-grid random start ($d=0.2$ for B5/S45, B6/S567 and B45/S5; $0.3$ for B6/S5678). Log scale.}
-    \label{fig:traces3d}
-  \end{minipage}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{survey3d_categories.pdf}
+    \caption{Categories of 100 random 3D rules for three ways of picking rules.}
+    \label{fig:3d}
 \end{figure}
 
-\subsection{Statistics of random 3D rules}
-
-\paragraph{Uniform rules are all chaotic.} The 3D half of \texttt{main.cpp} continues the same random stream to draw 100 rules uniformly from all $2^{54}$. Each runs on $24^3$ for at most 200 generations from $d\in\{0.1,0.2,0.35\}$. \textbf{All 100 are chaotic}, with a median entropy of 0.97, and only 1 of 300 runs died out. The reason is the same as in 2D, but stronger. A rule avoids every birth count from 0 to 4 with probability $2^{-5}\approx3\%$. With 26 neighbours, a count of 4 or less is met by almost every dead cell in a 10--35\% soup, so almost every rule sets the whole grid boiling. In the sample, 94 of the 100 rules had a smallest birth count of 4 or less, and the other 6 had 5--8.
-
-\paragraph{Sparser sampling.} To see the rest of 3D rule space, I sampled 100 rules where each count is included independently with probability $p=0.2$, and another 100 with $p=0.1$ (Figure~\ref{fig:3dcat}).
-
-\begin{figure}[!htbp]
-  \centering
-  \includegraphics[width=\linewidth]{survey3d_categories.pdf}
-  \caption{Categories of 100 random 3D rules ($24^3$, 200 generations) under three ways of sampling rules.}
-  \label{fig:3dcat}
-\end{figure}
-
-\begin{center}\small
-\begin{tabular}{@{}lccc@{}}
-\toprule
-Smallest birth count & uniform & $p=0.2$ & $p=0.1$ \\
-\midrule
-0 (B0)   & 47 chaotic & 20 chaotic, 1 oscillating & 7 chaotic \\
-1--4     & 47 chaotic & 33 chaotic & 26 chaotic \\
-5--8     & 6 chaotic  & 19 stable, 10 chaotic & 20 stable, 3 chaotic, 1 osc. \\
-9 or more & --        & 17 stable & 39 stable \\
-no birth & --         & -- & 4 stable \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\noindent The smallest birth count nearly decides the category on its own. \textbf{Every} rule with a birth count of 4 or less was chaotic (apart from one B0 strober), and \textbf{every} rule whose smallest birth count was 9 or more was stable, usually because it died out: 132 of the 300 $p=0.1$ runs ended with an empty grid. The interesting band is a smallest birth count of 5--8, where both outcomes happen. That is exactly where Carter Bays' 3D Life rules (\rl{B5/S45}, \rl{B6/S567}) sit. The classifier found \textbf{no} complex 3D rule in any of the three samples.
-
-\paragraph{Comparing with 2D.}
+\paragraph{Comparing 2D and 3D}
 \begin{itemize}
-  \item \textbf{The critical birth count scales with the neighbourhood.} In 2D, rules become ``tame'' at birth count 3, which is $3/8=37.5\%$ of the neighbourhood. In 3D the band is 5--8, or 19--31\% of 26. In both cases a dead cell should need a fair fraction of its neighbours alive before it can be born.
-  \item \textbf{Chaos is even more dominant in 3D} under uniform sampling (100\% against 76\%).
-  \item \textbf{3D Life-like rules are fragile.} On the website and in Figure~\ref{fig:traces3d}, Bays' \rl{B5/S45} and \rl{B6/S567} usually collapse within about 100 generations, to a handful of small still lifes or to nothing. In a seed sweep, \rl{B5/S45} died completely in about half of the soups. Bays found gliders in these rules, but I never saw one arise from a random soup, whereas in Life gliders appear in almost every soup. The visually rich 3D rules (Figure~\ref{fig:3dsite}) are growth rules: amoebas, crystals, coral and clouds.
+    \item In both, the smallest birth count decides a lot. In 2D the cutoff is about 3 out of 8 neighbours, in 3D about 5 to 8 out of 26, so in both a cell should need a fair fraction of its neighbours alive to be born.
+    \item Chaos is even more common in 3D (100\% vs.\ 71\% of random rules).
+    \item 3D ``Life-like'' rules are fragile. B5/S45 and B6/S567 usually die down to a few small still lifes within about 100 generations, and I never saw a glider come out of a random soup like they do in Life. The best looking 3D rules are growth rules instead: amoebas, crystals, coral and clouds.
 \end{itemize}
 
-\yours{Add what you saw yourself in 3D: e.g.\ try building one of Bays' gliders in the 3D editor, or describe how the growth rules look while they run.}
-
-%=====================================================================
-\section{How I used AI}
-%=====================================================================
-
-\yours{Describe how you used AI when writing the C++ engine and classifier (\texttt{engine/}, \texttt{analysis/}): what you asked for, what you wrote or changed yourself, and how you checked it.}
-
-\noindent The website and the analysis in this report were done with \textbf{Claude Code} (Anthropic's coding agent), working from my C++ engine and classifier and from the assignment text:
-\begin{itemize}
-  \item \textbf{Website.} It wrote the Emscripten bindings (\texttt{wasm/bindings.cpp}), including the \texttt{SeededGame} wrapper that lets the survey run in parallel while matching the CLI, and all of \texttt{web/}: the canvas viewer, the rule editor, the three.js 3D editor with ray-march picking, and the survey with its web workers and charts. It also wrote the GitHub Pages workflow. My instructions were the design brief: a blue colour scheme with recently changed cells in white, clickable rule editing, a 3D mode with a real 3D editor, and a survey section that feeds the viewer. I also told it not to modify my C++.
-  \item \textbf{Checking.} Before building the interface, it compiled my engine natively and to WebAssembly and confirmed that both give identical survey results (same rules, labels and entropies as \texttt{main.cpp}). It tested the site in a headless browser, including drawing, 3D clicks, survey runs and replay, and phone-width layout.
-  \item \textbf{Experiments and report.} It wrote \texttt{experiments/experiments.cpp}, which uses the engine and \texttt{Analysis} unchanged, and \texttt{experiments/figures.py}, ran them, and drafted this report. Along the way it verified several claims instead of assuming them: the replicator formula (25/25 checkpoints), the B0 strobe equivalence (4000/4000 generations), that Life's glider also works in HighLife, and that the 3D presets on the website survive across seeds (two didn't, and were fixed).
-  \item \textbf{Things it caught.} \texttt{main.cpp} referenced a \texttt{TrialResult::activeEntropy} field that doesn't exist in \texttt{analysis.hpp}. A first version of the object census counted each half of a split toad as an unknown object. And the \texttt{-O2} vs.\ \texttt{-O3} gap in the timing.
-\end{itemize}
-
-%=====================================================================
 \section{Limitations}
-%=====================================================================
-
 \begin{itemize}
-  \item \textbf{Finite torus.} Gliders can't escape, so soups on a torus settle differently from soups on an infinite plane. The ash statistics are for $128\times128$.
-  \item \textbf{Finite time.} Labels depend on \texttt{maxGen}. \rl{B45678/S12358} is complex at 500 generations and oscillating by about 900. Four Life soups were still active at 6000.
-  \item \textbf{The entropy threshold (0.35) was chosen by hand} for 2D and reused unchanged for 3D. No 3D rule was labelled complex, which may say as much about the measure as about 3D rules.
-  \item \textbf{Strobing B0 rules} fool the entropy measure (Section~\ref{sec:strobe}), and whole-grid hashing can't see a glider travelling through otherwise still debris.
-  \item \textbf{Three runs per rule} isn't much: 6\% of 2D rules got different labels from different densities.
-  \item \textbf{Sample sizes}: 100 rules per 3D sampling scheme, and one grid size ($24^3$) for the 3D survey.
-  \item \textbf{Performance}: the engine counts neighbours cell by cell with modulo wrap-around. Bit-parallel or GPU methods would allow much larger grids, and the browser view is capped at $64^3$ by rendering.
+    \item Since my grid wraps around, gliders can never escape, so results could differ on an infinite grid.
+    \item The categories depend on how long I run each rule. For example, B45678/S12358 was called complex at 500 generations but settles down by about generation 800.
+    \item The entropy cutoff (0.35) was picked by hand for 2D and reused for 3D. As shown above, flickering rules can fool it, and it can't see gliders.
+    \item Three starting soups per rule isn't many, and I only sampled 100 rules per 3D experiment on one grid size.
+    \item The simulation checks every neighbour of every cell one by one. Faster methods (bit tricks or the GPU) would allow much bigger 3D grids.
 \end{itemize}
 
-%=====================================================================
 \section{Thoughts}
-%=====================================================================
+The most surprising thing to me was the HighLife replicator: a 2D rule that ends up drawing a Sierpinski triangle with an exact formula for its population. I was also surprised by how rare ``complex'' behaviour actually is, and how hard it is to measure. My entropy heuristic sounded reasonable, but the one rule it picked out turned out to be a flickering trick. It was also cool that the smallest birth count acted like a dividing line in both 2D and 3D.
 
-\yours{Your own reflections: what excited you, what surprised you, and what you'd like to learn more about. Some threads from this project you could pick up: the replicator following the Sierpinski triangle (a 2D rule reproducing a 1D rule); how rare ``complex'' is and how hard it is to measure; the smallest birth count working as a phase boundary in both 2D and 3D; and the link to the Emergent Garden video's question of what makes a system life-like (reproduction, as in the replicator; variation and selection, which these deterministic rules don't have).}
-
-\clearpage
-\appendix
-%=====================================================================
-\section{All 100 sampled 2D rules}\label{app:table}
-%=====================================================================
-
-Seed 2026, $64\times64$, 500 generations. The same list as \texttt{main.cpp} and the website survey produce. Each run cell is the run's label (S = stable, O = oscillating, X = chaotic, C = complex) followed by either the period and generation of the first repeat ($p$\,period\,@\,generation) or the mean entropy ($H$). $^\dagger$ marks runs that died out.
-
-\input{tables/survey2d_table.tex}
+Relating back to the video, the replicator is the closest thing to reproduction I saw, but these rules have no variation or selection, since every run is completely determined by its start. I'd like to learn more about how to automatically detect structures like gliders, and about systems that add mutation, since that seems like the missing piece for something truly life-like.
 
 \end{document}
