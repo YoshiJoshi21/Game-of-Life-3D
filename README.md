@@ -94,7 +94,3 @@ Install [Emscripten](https://emscripten.org/docs/getting_started/downloads.html)
 ```sh
 g++ -O2 -std=c++17 analysis/main.cpp -o analysis/main && ./analysis/main
 ```
-
-Note: `printResult` reads `t.activeEntropy`, but `TrialResult` in
-`analysis/analysis.hpp` has no such field, so the CLI won't compile until the two
-files agree. The website doesn't use `main.cpp`, so it isn't affected.
